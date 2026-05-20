@@ -7,7 +7,7 @@ struct CategoriesResponse: Codable {
     let emerging: [EmergingOpportunity]
 }
 
-struct Category: Codable, Identifiable {
+struct Category: Codable, Identifiable, Hashable {
     let id: String
     let name: String
     let icon: String
@@ -31,7 +31,7 @@ struct Category: Codable, Identifiable {
     }
 }
 
-struct CategoryBenchmarks: Codable {
+struct CategoryBenchmarks: Codable, Hashable {
     let avgPe: Double?
     let avgPb: Double?
     let avgRoe: Double?
