@@ -16,8 +16,9 @@ enum APIError: Error, LocalizedError {
     }
 }
 
-final class APIService: Sendable {
+final class APIService {
     static let shared = APIService()
+    private init() {}
 
     private let session: URLSession = {
         let cfg = URLSessionConfiguration.default
@@ -40,14 +41,14 @@ final class APIService: Sendable {
             ?? "https://leaders-button-lexmark-airplane.trycloudflare.com"
     }
 
-    // MARK: Generic fetch
+    // MARK: - Generic fetch
 
     private func fetch<T: Decodable>(_ path: String) async throws -> T {
         guard let url = URL(string: baseURL + path) else { throw APIError.invalidURL }
-
         do {
             let (data, response) = try await session.data(from: url)
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            if let http = response as? HTTPURLResponse,
+               !(200..<300).contains(http.statusCode) {
                 throw APIError.http(http.statusCode)
             }
             return try decoder.decode(T.self, from: data)
@@ -56,7 +57,7 @@ final class APIService: Sendable {
           catch { throw APIError.network(error) }
     }
 
-    // MARK: Endpoints
+    // MARK: - Endpoints
 
     func categories() async throws -> CategoriesResponse {
         try await fetch("/api/categories/")

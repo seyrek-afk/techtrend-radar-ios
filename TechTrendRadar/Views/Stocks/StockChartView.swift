@@ -5,24 +5,32 @@ struct StockChartView: View {
     let history: [PricePoint]
     let changePositive: Bool
 
-    @State private var selectedPoint: PricePoint?
-    @State private var plotWidth: CGFloat = 0
+    @State private var selectedIndex: Int?
 
     private var lineColor: Color { changePositive ? .positive : .negative }
     private var minPrice: Double { history.map(\.close).min() ?? 0 }
     private var maxPrice: Double { history.map(\.close).max() ?? 0 }
-    private var priceRange: Double { maxPrice - minPrice }
+    private var padding: Double { max((maxPrice - minPrice) * 0.05, 1) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Selection overlay
-            if let p = selectedPoint {
+            headerRow
+            chartBody
+            dateLabels
+        }
+        .padding(.vertical, 14)
+        .glassCard()
+    }
+
+    private var headerRow: some View {
+        Group {
+            if let idx = selectedIndex, history.indices.contains(idx) {
                 HStack {
-                    Text(p.date)
+                    Text(history[idx].date)
                         .font(TTFont.caption)
                         .foregroundStyle(Color.slateMuted)
                     Spacer()
-                    Text(String(format: "$%.2f", p.close))
+                    Text(String(format: "$%.2f", history[idx].close))
                         .font(TTFont.mono)
                         .foregroundStyle(lineColor)
                 }
@@ -31,99 +39,94 @@ struct StockChartView: View {
                 SectionHeader(title: "Fiyat Geçmişi")
                     .padding(.horizontal, 14)
             }
+        }
+    }
 
-            Chart {
-                ForEach(Array(history.enumerated()), id: \.element.id) { idx, point in
-                    AreaMark(
-                        x: .value("Tarih", idx),
-                        yStart: .value("Taban", minPrice - priceRange * 0.05),
-                        yEnd: .value("Fiyat", point.close)
+    private var chartBody: some View {
+        Chart {
+            ForEach(Array(history.enumerated()), id: \.element.id) { idx, point in
+                AreaMark(
+                    x: .value("İndeks", idx),
+                    yStart: .value("Alt", minPrice - padding),
+                    yEnd: .value("Fiyat", point.close)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [lineColor.opacity(0.25), lineColor.opacity(0.02)],
+                        startPoint: .top, endPoint: .bottom
                     )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [lineColor.opacity(0.3), lineColor.opacity(0.02)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .interpolationMethod(.catmullRom)
+                )
+                .interpolationMethod(.catmullRom)
 
-                    LineMark(
-                        x: .value("Tarih", idx),
-                        y: .value("Fiyat", point.close)
-                    )
-                    .foregroundStyle(lineColor)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-                    .interpolationMethod(.catmullRom)
-                }
-
-                if let sel = selectedPoint,
-                   let idx = history.firstIndex(where: { $0.id == sel.id }) {
-                    RuleMark(x: .value("Seçili", idx))
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 2]))
-                        .foregroundStyle(Color.slateMuted.opacity(0.6))
-
-                    PointMark(
-                        x: .value("Tarih", idx),
-                        y: .value("Fiyat", sel.close)
-                    )
-                    .symbolSize(60)
-                    .foregroundStyle(lineColor)
-                }
+                LineMark(
+                    x: .value("İndeks", idx),
+                    y: .value("Fiyat", point.close)
+                )
+                .foregroundStyle(lineColor)
+                .lineStyle(StrokeStyle(lineWidth: 2))
+                .interpolationMethod(.catmullRom)
             }
-            .chartXAxis(.hidden)
-            .chartYAxis {
-                AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { v in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(Color.white.opacity(0.05))
-                    AxisValueLabel {
-                        if let d = v.as(Double.self) {
-                            Text(String(format: "$%.0f", d))
-                                .font(TTFont.label)
-                                .foregroundStyle(Color.slateMuted)
-                        }
+
+            if let idx = selectedIndex, history.indices.contains(idx) {
+                RuleMark(x: .value("Seçili", idx))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 2]))
+                    .foregroundStyle(Color.slateMuted.opacity(0.5))
+                PointMark(
+                    x: .value("İndeks", idx),
+                    y: .value("Fiyat", history[idx].close)
+                )
+                .symbolSize(50)
+                .foregroundStyle(lineColor)
+            }
+        }
+        .chartXAxis(.hidden)
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { val in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(Color.white.opacity(0.05))
+                AxisValueLabel {
+                    if let d = val.as(Double.self) {
+                        Text(String(format: "$%.0f", d))
+                            .font(TTFont.label)
+                            .foregroundStyle(Color.slateMuted)
                     }
                 }
             }
-            .chartYScale(domain: (minPrice - priceRange * 0.05)...(maxPrice + priceRange * 0.05))
-            .chartOverlay { proxy in
-                GeometryReader { geo in
-                    Rectangle()
-                        .fill(.clear)
-                        .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { val in
-                                    let x = val.location.x - geo.frame(in: .local).minX
-                                    if let idx: Int = proxy.value(atX: x),
-                                       history.indices.contains(idx) {
-                                        selectedPoint = history[idx]
-                                    }
+        }
+        .chartYScale(domain: (minPrice - padding)...(maxPrice + padding))
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let x = value.location.x - geo.frame(in: .local).minX
+                                if let rawIdx = proxy.value(atX: x, as: Int.self),
+                                   history.indices.contains(rawIdx) {
+                                    selectedIndex = rawIdx
                                 }
-                                .onEnded { _ in
-                                    withAnimation(.easeOut(duration: 0.2)) {
-                                        selectedPoint = nil
-                                    }
+                            }
+                            .onEnded { _ in
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    selectedIndex = nil
                                 }
-                        )
-                }
-            }
-            .frame(height: 180)
-            .padding(.horizontal, 8)
-
-            // Date range labels
-            if let first = history.first, let last = history.last {
-                HStack {
-                    Text(first.date)
-                    Spacer()
-                    Text(last.date)
-                }
-                .font(TTFont.label)
-                .foregroundStyle(Color.slateMuted)
-                .padding(.horizontal, 14)
+                            }
+                    )
             }
         }
-        .padding(.vertical, 14)
-        .glassCard()
+        .frame(height: 180)
+        .padding(.horizontal, 8)
+    }
+
+    private var dateLabels: some View {
+        HStack {
+            Text(history.first?.date ?? "")
+            Spacer()
+            Text(history.last?.date ?? "")
+        }
+        .font(TTFont.label)
+        .foregroundStyle(Color.slateMuted)
+        .padding(.horizontal, 14)
     }
 }
