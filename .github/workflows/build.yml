@@ -29,6 +29,9 @@ jobs:
       - name: Resolve Swift packages
         run: xcodebuild -resolvePackageDependencies -project TechTrendRadar.xcodeproj -scheme TechTrendRadar
 
+      - name: Show available simulators
+        run: xcodebuild -showdestinations -scheme TechTrendRadar -project TechTrendRadar.xcodeproj 2>&1 | grep "iOS Simulator" | head -10 || true
+
       - name: Build (simulator)
         run: |
           set -eo pipefail
@@ -36,12 +39,14 @@ jobs:
             -project TechTrendRadar.xcodeproj \
             -scheme TechTrendRadar \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
-            ONLY_ACTIVE_ARCH=NO \
-            2>&1 | tee build.log | tail -50
+            ONLY_ACTIVE_ARCH=YES \
+            ENABLE_ON_DEMAND_RESOURCES=NO \
+            ACTOOL_COMPRESS_PNGS=NO \
+            2>&1 | tee build.log | tail -80
 
       - name: Verify build output
         run: |
