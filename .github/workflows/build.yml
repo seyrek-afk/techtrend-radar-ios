@@ -31,22 +31,41 @@ jobs:
 
       - name: Build (simulator)
         run: |
+          set -eo pipefail
           xcodebuild build \
             -project TechTrendRadar.xcodeproj \
             -scheme TechTrendRadar \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
             -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO \
-            | xcpretty || true
+            CODE_SIGN_IDENTITY="" \
+            ONLY_ACTIVE_ARCH=NO \
+            2>&1 | tee build.log | tail -50
+
+      - name: Verify build output
+        run: |
+          echo "=== DerivedData/Build/Products içeriği ==="
+          find DerivedData/Build/Products -maxdepth 3 | head -40
+          APP_PATH=$(find DerivedData -name "TechTrendRadar.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ .app bulunamadı! Build logu:"
+            tail -100 build.log
+            exit 1
+          fi
+          echo "✅ App path: $APP_PATH"
+          echo "=== App içeriği ==="
+          ls -la "$APP_PATH"
 
       - name: Create simulator zip (Appetize format)
         run: |
+          set -eo pipefail
           APP_PATH=$(find DerivedData -name "TechTrendRadar.app" -type d | head -1)
-          echo "App path: $APP_PATH"
-          # Appetize simulator format: .app doğrudan zip içinde, Payload/ sarmalı olmadan
+          # Appetize simulator format: .app doğrudan zip kökünde, Payload/ sarmalı olmadan
           cd "$(dirname "$APP_PATH")"
           zip -r "$GITHUB_WORKSPACE/TechTrendRadar.zip" TechTrendRadar.app
+          echo "=== Zip içeriği (ilk 20 satır) ==="
+          zipinfo "$GITHUB_WORKSPACE/TechTrendRadar.zip" | head -20
 
       - name: Upload simulator zip artifact
         uses: actions/upload-artifact@v4
