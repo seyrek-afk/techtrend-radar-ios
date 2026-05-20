@@ -40,20 +40,19 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty || true
 
-      - name: Create simulator .app archive
+      - name: Create simulator zip (Appetize format)
         run: |
           APP_PATH=$(find DerivedData -name "TechTrendRadar.app" -type d | head -1)
           echo "App path: $APP_PATH"
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/TechTrendRadar.app
-          zip -r TechTrendRadar.zip Payload
-          mv TechTrendRadar.zip TechTrendRadar.ipa
+          # Appetize simulator format: .app doğrudan zip içinde, Payload/ sarmalı olmadan
+          cd "$(dirname "$APP_PATH")"
+          zip -r "$GITHUB_WORKSPACE/TechTrendRadar.zip" TechTrendRadar.app
 
-      - name: Upload .ipa artifact
+      - name: Upload simulator zip artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TechTrendRadar-${{ github.sha }}
-          path: TechTrendRadar.ipa
+          name: TechTrendRadar-simulator-${{ github.sha }}
+          path: TechTrendRadar.zip
           retention-days: 14
 
       - name: Upload to Appetize.io
@@ -64,25 +63,22 @@ jobs:
         run: |
           if [ -z "$APPETIZE_API_TOKEN" ]; then
             echo "⚠️  APPETIZE_API_TOKEN secret tanımlı değil, upload atlanıyor."
-            echo "Appetize.io kurulumu için README'ye bakın."
             exit 0
           fi
 
           if [ -n "$APPETIZE_PUBLIC_KEY" ]; then
-            # Mevcut app'i güncelle
             echo "Appetize.io uygulaması güncelleniyor..."
             RESPONSE=$(curl -s -X POST \
               "https://api.appetize.io/v1/apps/$APPETIZE_PUBLIC_KEY" \
               -H "Authorization: Token $APPETIZE_API_TOKEN" \
-              -F "file=@TechTrendRadar.ipa" \
+              -F "file=@TechTrendRadar.zip" \
               -F "platform=ios")
           else
-            # Yeni app yükle
             echo "Appetize.io'ya yeni uygulama yükleniyor..."
             RESPONSE=$(curl -s -X POST \
               "https://api.appetize.io/v1/apps" \
               -H "Authorization: Token $APPETIZE_API_TOKEN" \
-              -F "file=@TechTrendRadar.ipa" \
+              -F "file=@TechTrendRadar.zip" \
               -F "platform=ios")
           fi
 
@@ -91,7 +87,6 @@ jobs:
 
           if [ -n "$PUBLIC_KEY" ]; then
             echo "✅ Appetize URL: https://appetize.io/app/$PUBLIC_KEY"
-            echo "APPETIZE_URL=https://appetize.io/app/$PUBLIC_KEY" >> $GITHUB_STEP_SUMMARY
             echo "## 📱 iOS Simülatör" >> $GITHUB_STEP_SUMMARY
             echo "[Tarayıcıda Aç](https://appetize.io/app/$PUBLIC_KEY)" >> $GITHUB_STEP_SUMMARY
           fi
